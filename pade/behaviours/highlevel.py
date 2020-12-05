@@ -60,6 +60,15 @@ class GenericFipaProtocol(Behaviour):
     def run(self, generator):
         pass
 
+    def send_not_understood(self, message: ACLMessage):
+
+        message.set_performative(ACLMessage.NOT_UNDERSTOOD)
+
+        # Send message to all receivers
+        self.agent.send(message)
+
+        return message
+
 
 class FipaRequestProtocolInitiator(GenericFipaProtocol):
 
