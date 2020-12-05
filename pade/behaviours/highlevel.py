@@ -1,4 +1,5 @@
 from typing import Any, Callable
+from functools import wraps
 
 from pade.acl.messages import ACLMessage
 from pade.behaviours.protocols import Behaviour
@@ -51,6 +52,7 @@ class GenericFipaProtocol(Behaviour):
         agent.behaviours.append(self)
 
     def synchronize(self, async_f):
+        @wraps(async_f)
         def synchronized(*args, **kwargs):
             return self.run(async_f(*args, **kwargs))
         return synchronized
