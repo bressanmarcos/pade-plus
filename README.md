@@ -29,10 +29,14 @@ The instructions below are complementary to the official project, and detail spe
 from pade.behaviours.highlevel import FipaRequestProtocol
 from pade.behaviours.highlevel import FipaFailureHandler
 from pade.behaviours.highlevel import FipaProtocolComplete
+from pade.plus.agent import ImprovedAgent
+
 
 class AnAgent(ImprovedAgent):
     def __init__(self):
         self.request = FipaRequestProtocol(self, is_initiator=True)
+        # `self.request` is also automatically added to `self.behaviours` to
+        # avoid verbosity
 
     def make_request(receiver_aid):
 
