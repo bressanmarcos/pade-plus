@@ -46,6 +46,10 @@ class FipaRejectProposalHandler(FipaMessageHandler):
     """Exception handler for FIPA-REJECT-PROPOSAL messages"""
 
 
+class FipaNotUnderstoodHandler(FipaMessageHandler):
+    """Exception handler for FIPA-NOT-UNDERSTOOD messages"""
+
+
 class GenericFipaProtocol(Behaviour):
     def __init__(self, agent):
         super().__init__(agent)
