@@ -21,7 +21,7 @@ class Manager(ImprovedAgent):
 
     def call_proposals(self, recipients_aid):
 
-        @self.contract_net.synchronize
+        @FipaSession.session
         def async_cfp():
             # Message to send
             message = ACLMessage()
@@ -29,13 +29,12 @@ class Manager(ImprovedAgent):
             for r in recipients_aid:
                 message.add_receiver(r)
 
-            self.contract_net.send_cfp(message)
             proposals_received = []
 
             while True:
                 try:
                     # Expecting PROPOSAL by default
-                    proposal = yield message
+                    proposal = yield self.contract_net.send_cfp(message)
                     display_message(
                         self.aid.name,
                         f'I received PROPOSE: {proposal.content} from {proposal.sender.name}'
@@ -72,11 +71,10 @@ class Manager(ImprovedAgent):
             reply = best_proposal.create_reply()
             reply.set_content('Accepted!')
             # It creates a session
-            self.contract_net.send_accept_proposal(reply)
 
             try:
                 # Expects INFORM by default
-                inform = yield reply
+                inform = yield self.contract_net.send_accept_proposal(reply)
                 content = inform.content
                 display_message(
                     self.aid.name,
@@ -93,7 +91,7 @@ class Contractor(ImprovedAgent):
         super().__init__(aid=aid, debug=False)
         self.contract_net = FipaContractNetProtocol(self,
                                                     is_initiator=False)
-        self.contract_net.add_cfp_handler(self.on_cfp)
+        self.contract_net.set_cfp_handler(self.on_cfp)
 
     def on_cfp(self, message):
         display_message(
@@ -110,12 +108,11 @@ class Contractor(ImprovedAgent):
         # Propose
         reply.set_content(str(randint(0, 1000)))
 
-        @self.contract_net.synchronize
+        @FipaSession.session
         def async_propose():
-            self.contract_net.send_propose(reply)
-            # Wait for response
+
             try:
-                accept_proposal = yield reply
+                accept_proposal = yield self.contract_net.send_propose(reply)
                 display_message(
                     self.aid.name,
                     f'I received ACCEPT-PROPOSAL: {accept_proposal.content} from {accept_proposal.sender.name}'
@@ -150,13 +147,13 @@ if __name__ == "__main__":
     agents = list()
 
     # Contractors
-    for i in range(20):
-        contractor = Contractor(AID(f"contractor{i}@localhost:{60000+i}"))
+    for i in range(3):
+        contractor = Contractor(AID(f"contractor{i}@localhost:{randint(10000, 60000)}"))
         agents.append(contractor)
 
     # Sender
     sender_agent = Manager(
-        AID("manager@localhost:50000"),
+        AID(f"manager@localhost:{randint(10000, 60000)}"),
         [a.aid for a in agents]
     )
     agents.append(sender_agent)

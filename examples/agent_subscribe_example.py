@@ -21,19 +21,17 @@ class Subscriber(ImprovedAgent):
 
     def call_subscribe(self, publisher_aid):
 
-        @self.subscribe.synchronize
+        @FipaSession.session
         def async_subscribe():
             # Message to send
             message = ACLMessage()
             message.set_content('Subscribe me, please!')
             message.add_receiver(publisher_aid)
 
-            self.subscribe.send_subscribe(message)
-
             while True:
                 try:
                     # Expecting INFORM by default
-                    inform = yield message
+                    inform = yield self.subscribe.send_subscribe(message)
                     display_message(
                         self.aid.name,
                         f'I received INFORM: {inform.content} from {inform.sender.name}'
@@ -67,7 +65,7 @@ class Publisher(ImprovedAgent):
         super().__init__(aid=aid, debug=False)
         self.subscribe = FipaSubscribeProtocol(self,
                                                is_initiator=False)
-        self.subscribe.add_subscribe_handler(self.on_subscribe)
+        self.subscribe.set_subscribe_handler(self.on_subscribe)
 
         # informer
         def informer():

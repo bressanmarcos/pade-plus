@@ -50,19 +50,28 @@ class FipaNotUnderstoodHandler(FipaMessageHandler):
     """Exception handler for FIPA-NOT-UNDERSTOOD messages"""
 
 
+class FipaSession():
+    @staticmethod
+    def session(async_f):
+        """Converts generator function into a callable function"""
+        @wraps(async_f)
+        def synchronized(*args, **kwargs):
+            return FipaSession.run(async_f(*args, **kwargs))
+        return synchronized
+
+    @staticmethod
+    def run(generator) -> None:
+        """Register generator before sending message."""
+        protocol, message = next(generator)
+        protocol.register_session(message, generator)
+
+
 class GenericFipaProtocol(Behaviour):
     def __init__(self, agent):
         super().__init__(agent)
         agent.behaviours.append(self)
-
-    def synchronize(self, async_f):
-        @wraps(async_f)
-        def synchronized(*args, **kwargs):
-            return self.run(async_f(*args, **kwargs))
-        return synchronized
-
-    def run(self, generator):
-        pass
+        
+        self.open_sessions = {}
 
     def send_not_understood(self, message: ACLMessage):
 
@@ -71,7 +80,31 @@ class GenericFipaProtocol(Behaviour):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
+
+    def register_session(self, message, generator) -> None:
+        """Register generator to receive response."""
+        raise NotImplementedError
+
+    def delete_session(self, session_id) -> None:
+        """Delete an open session and terminate protocol session"""
+
+        try:
+            generator = self.open_sessions.pop(session_id)
+        except KeyError:
+            pass
+        else:
+            # Signal protocol completion if it's the last message
+            try:
+                next_ = generator.throw(FipaProtocolComplete)
+            except (StopIteration, FipaProtocolComplete):
+                pass
+            else:
+                try:
+                    protocol, message = next_
+                    protocol.register_session(message, generator)
+                except TypeError:
+                    pass
 
 
 class FipaRequestProtocolInitiator(GenericFipaProtocol):
@@ -119,48 +152,36 @@ class FipaRequestProtocolInitiator(GenericFipaProtocol):
         if message.performative in (ACLMessage.REFUSE, ACLMessage.INFORM, ACLMessage.FAILURE):
             self.delete_session(session_id)
 
-    def delete_session(self, session_id):
-        """Delete an open session and terminate protocol session"""
-
-        try:
-            generator = self.open_sessions.pop(session_id)
-        except KeyError:
-            pass
-        else:
-            # Signal protocol completion if it's the last message
-            try:
-                generator.throw(FipaProtocolComplete)
-            except (StopIteration, FipaProtocolComplete):
-                pass
-
     def send_request(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-        message.set_performative(ACLMessage.REQUEST)
+        if message.conversation_id not in self.open_sessions:
+            """Ensures that a message is only sent when there is no open
+            session for it"""
+            message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
+            message.set_performative(ACLMessage.REQUEST)
 
-        # Send message to all receivers
-        self.agent.send(message)
+            # Only individual messages
+            assert len(message.receivers) == 1
 
-        return message
+            # Send message to all receivers
+            self.agent.send(message)
 
-    def run(self, generator) -> None:
-        """Register generator before sending message."""
-        message = next(generator)
-        # Only individual messages
-        assert len(message.receivers) == 1
+            return self, message
 
+    def register_session(self, message, generator) -> None:
         # Register generator in session
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
+
         # The session expires in 1 minute by default
-        self.agent.call_later(60, lambda: self.delete_session(session_id))
+        self.agent.call_later(60, self.delete_session, session_id)
 
 
 class FipaRequestProtocolParticipant(GenericFipaProtocol):
 
     def __init__(self, agent):
         super().__init__(agent)
-        self.callbacks = []
+        self.callback = None
 
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
@@ -176,12 +197,11 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         if not message.performative == ACLMessage.REQUEST:
             return
 
-        for callback in self.callbacks:
-            callback(message)
+        self.callback(message)
 
-    def add_request_handler(self, callback: Callable[[ACLMessage], Any]):
+    def set_request_handler(self, callback: Callable[[ACLMessage], Any]):
         """Add function to be called for request"""
-        self.callbacks.append(callback)
+        self.callback = callback
 
     def send_inform(self, message: ACLMessage):
 
@@ -191,7 +211,7 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_failure(self, message: ACLMessage):
 
@@ -201,7 +221,7 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_agree(self, message: ACLMessage):
 
@@ -211,7 +231,7 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_refuse(self, message: ACLMessage):
 
@@ -221,7 +241,7 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
 
 def FipaRequestProtocol(agent: Agent, is_initiator=True):
@@ -277,35 +297,22 @@ class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
         if message.performative in (ACLMessage.REFUSE, ACLMessage.FAILURE):
             self.delete_session(session_id)
 
-    def delete_session(self, session_id):
-        """Delete an open session and terminate protocol session"""
-
-        try:
-            generator = self.open_sessions.pop(session_id)
-        except KeyError:
-            pass
-        else:
-            # Signal protocol completion if it's the last message
-            try:
-                generator.throw(FipaProtocolComplete)
-            except (StopIteration, FipaProtocolComplete):
-                pass
-
     def send_subscribe(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
-        message.set_performative(ACLMessage.SUBSCRIBE)
+        if message.conversation_id not in self.open_sessions:
+            """Ensures that a message is only sent when there is no open
+            session for it"""
+            message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
+            message.set_performative(ACLMessage.SUBSCRIBE)
 
-        # Send message to all receivers
-        self.agent.send(message)
+            # Send message to all receivers
+            self.agent.send(message)
 
-        return message
+            return self, message
 
-    def run(self, generator) -> None:
-        """Register generator before sending message."""
-        message = next(generator)
+    def register_session(self, message, generator) -> None:
+        """Register generator to receive response."""
 
-        # Register generator in session
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
 
@@ -314,7 +321,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
 
     def __init__(self, agent):
         super().__init__(agent)
-        self.callbacks = []
+        self.callback = None
         self._subscribers = set()
 
     def execute(self, message: ACLMessage):
@@ -331,8 +338,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         if not message.performative == ACLMessage.SUBSCRIBE:
             return
 
-        for callback in self.callbacks:
-            callback(message)
+        self.callback(message)
 
     def subscribe(self, subscribe_message: ACLMessage):
         """Add new subscriber by registering its subscribe message"""
@@ -345,9 +351,9 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
             if subscribe_message.sender == aid)
         self._subscribers.remove(subscribe_message)
 
-    def add_subscribe_handler(self, callback: Callable[[ACLMessage], Any]):
+    def set_subscribe_handler(self, callback: Callable[[ACLMessage], Any]):
         """Add function to be called on subscribe"""
-        self.callbacks.append(callback)
+        self.callback = callback
 
     def send_inform(self, message: ACLMessage):
 
@@ -363,7 +369,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
             # Send message to subscriber
             self.agent.send(inform)
 
-        return message
+        return self, message
 
     def send_failure(self, message: ACLMessage):
 
@@ -375,7 +381,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_agree(self, message: ACLMessage):
 
@@ -385,7 +391,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_refuse(self, message: ACLMessage):
 
@@ -395,7 +401,7 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
 
 def FipaSubscribeProtocol(agent: Agent, is_initiator=True):
@@ -415,6 +421,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
         # sessions with a same party.
         # The pair (conversation_id) represents a unique session.
         self.open_sessions = {}
+        self.session_params = {}
 
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
@@ -431,11 +438,11 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
         if session_id not in self.open_sessions:
             return
 
-        (generator, n_receivers) = self.open_sessions[session_id]
+        generator = self.open_sessions[session_id]
+        params = self.session_params[session_id]
 
         # CFP Phase
-        if n_receivers is not None:
-
+        if params['cfp_phase']:
             handlers = {
                 ACLMessage.PROPOSE: lambda: generator.send(message),
                 ACLMessage.REFUSE: lambda: generator.throw(
@@ -459,97 +466,124 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             return
 
         # First phase: CFP
-        if n_receivers is not None:
-            # Count remaining messages to be received
-            n_receivers -= 1
+        if params['cfp_phase']:
+            params['receivers'][message.sender].add(message.performative)
 
-            self.open_sessions[session_id] = (generator, n_receivers)
-
-            if n_receivers == 0:
+            if all(
+                params['receivers'][r] & {
+                    ACLMessage.PROPOSE, ACLMessage.REFUSE}
+                for r in params['receivers']
+            ):
                 # End of CFP
                 self.end_cfp(session_id)
 
         # Second phase: Result
         else:
-            self.delete_session(session_id)
+            if all(
+                params['receivers'][r] & {
+                    ACLMessage.INFORM, ACLMessage.FAILURE}
+                for r in params['receivers']
+                if params['receivers'][r] & {ACLMessage.PROPOSE}
+            ):
+                self.delete_session(session_id)
 
     def end_cfp(self, session_id):
         """Terminate cfp phase"""
 
         try:
-            (generator, n_receivers) = self.open_sessions[session_id]
+            generator = self.open_sessions[session_id]
+            params = self.session_params[session_id]
         except KeyError:
             pass
         else:
-            # Signal cfp completion, getting 0 n_receivers in case of timeout
-            if n_receivers is not None:
-                self.open_sessions[session_id] = (generator, None)
+            # Signal cfp completion
+            if params['cfp_phase']:
+                params['cfp_phase'] = False
+
                 try:
                     generator.throw(FipaCfpComplete)
                 except (StopIteration, FipaCfpComplete):
                     pass
 
-    def delete_session(self, session_id):
-        """Delete an open session and terminate protocol session"""
-        try:
-            (generator, n_receivers) = self.open_sessions.pop(session_id)
-        except KeyError:
-            pass
-        else:
-            # Signal protocol completion if it's the last message
-            try:
-                generator.throw(FipaProtocolComplete)
-            except (StopIteration, FipaProtocolComplete):
-                pass
-
     def send_cfp(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-        message.set_performative(ACLMessage.CFP)
+        if message.conversation_id not in self.open_sessions:
+            """Ensures that a message is only sent when there is no open
+            session for it"""
+            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+            message.set_performative(ACLMessage.CFP)
 
-        # Send message to all receivers
-        self.agent.send(message)
+            # Send message to all receivers
+            self.agent.send(message)
 
-        return message
+            return self, message
 
     def send_accept_proposal(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-        message.set_performative(ACLMessage.ACCEPT_PROPOSAL)
+        session_id = message.conversation_id
+        receiver = message.receivers[0]
+        receiver_msgs = self.session_params[session_id]['receivers'][receiver]
 
-        # Send message to all receivers
-        self.agent.send(message)
+        if not receiver_msgs & {ACLMessage.ACCEPT_PROPOSAL, ACLMessage.REJECT_PROPOSAL}:
 
-        return message
+            receiver_msgs.add(ACLMessage.ACCEPT_PROPOSAL)
+
+            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+            message.set_performative(ACLMessage.ACCEPT_PROPOSAL)
+
+            # Send message to all receivers
+            self.agent.send(message)
+
+        return self, message
 
     def send_reject_proposal(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-        message.set_performative(ACLMessage.REJECT_PROPOSAL)
+        session_id = message.conversation_id
+        receiver = message.receivers[0]
+        receiver_msgs = self.session_params[session_id]['receivers'][receiver]
 
-        # Send message to all receivers
-        self.agent.send(message)
+        if not receiver_msgs & {ACLMessage.ACCEPT_PROPOSAL, ACLMessage.REJECT_PROPOSAL}:
 
-        return message
+            receiver_msgs.add(ACLMessage.REJECT_PROPOSAL)
 
-    def run(self, generator) -> None:
-        """Register generator before sending message."""
-        message = next(generator)
-        n_receivers = len(message.receivers)
+            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+            message.set_performative(ACLMessage.REJECT_PROPOSAL)
+
+            # Send message to all receivers
+            self.agent.send(message)
+
+        return self, message
+
+    def register_session(self, message, generator) -> None:
+
+        receivers = message.receivers
         # Register generator in session
         session_id = message.conversation_id
-        self.open_sessions[session_id] = (generator, n_receivers)
+        self.open_sessions[session_id] = generator
+        self.session_params[session_id] = {
+            'cfp_phase': True,
+            'receivers': {r: set() for r in receivers}
+        }
         # Set timeout to CFP
-        self.agent.call_later(30, lambda: self.end_cfp(session_id))
+        self.agent.call_later(30, self.end_cfp, session_id)
         # The session expires in 1 minute by default
-        self.agent.call_later(60, lambda: self.delete_session(session_id))
+        self.agent.call_later(60, self.delete_session, session_id)
+
+    def delete_session(self, session_id):
+
+        try:
+            params = self.session_params.pop(session_id)
+        except KeyError:
+            pass
+
+        super().delete_session(session_id)
 
 
 class FipaContractNetProtocolParticipant(GenericFipaProtocol):
 
     def __init__(self, agent):
         super().__init__(agent)
-        self.cfp_handlers = []
+        self.callback = None
         self.open_sessions = {}
 
     def execute(self, message: ACLMessage):
@@ -563,8 +597,7 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
             return
 
         if message.performative == ACLMessage.CFP:
-            for cfp_handler in self.cfp_handlers:
-                cfp_handler(message)
+            self.callback(message)
             return
 
         # Filter for session_id (conversation_id)
@@ -589,17 +622,10 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Clear session
         self.delete_session(session_id)
 
-    def delete_session(self, session_id):
-        """Delete an open session and terminate protocol session"""
-        try:
-            del self.open_sessions[session_id]
-        except KeyError:
-            pass
-
-    def add_cfp_handler(self, callback: Callable[[ACLMessage], Any]):
+    def set_cfp_handler(self, callback: Callable[[ACLMessage], Any]):
         """Add function to be called on cfp"""
 
-        self.cfp_handlers.append(callback)
+        self.callback = callback
 
     def send_inform(self, message: ACLMessage):
 
@@ -609,7 +635,7 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_failure(self, message: ACLMessage):
 
@@ -619,17 +645,20 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_propose(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-        message.set_performative(ACLMessage.PROPOSE)
+        if message.conversation_id not in self.open_sessions:
+            """Ensures that a message is only sent when there is no open
+            session for it"""
+            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+            message.set_performative(ACLMessage.PROPOSE)
 
-        # Send message to all receivers
-        self.agent.send(message)
+            # Send message to all receivers
+            self.agent.send(message)
 
-        return message
+        return self, message
 
     def send_refuse(self, message: ACLMessage):
 
@@ -639,16 +668,15 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return message
+        return self, message
 
-    def run(self, generator) -> None:
-        """Register generator before sending message."""
-        message = next(generator)
+    def register_session(self, message, generator) -> None:
+
         # Register generator in session
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
         # The session expires in 1 minute by default
-        self.agent.call_later(60, lambda: self.delete_session(session_id))
+        self.agent.call_later(60, self.delete_session, session_id)
 
 
 def FipaContractNetProtocol(agent: Agent, is_initiator=True):
