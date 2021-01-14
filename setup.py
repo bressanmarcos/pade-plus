@@ -1,9 +1,10 @@
 
+from setuptools import setup, find_namespace_packages
+
 import os
 os.sys.path.insert(0, os.path.join(os.getcwd(), 'pade'))
 from __version__ import __version__
 
-from setuptools import setup
 
 with open("README.md", "r", encoding='UTF-8') as fh:
     long_description = fh.read()
@@ -17,7 +18,7 @@ setup(name='pade-plus',
       author_email='bressanmarcos@alu.ufc.br',
       license='MIT',
       keywords='multiagent distributed systems',
-      packages=['pade.behaviours', 'pade.plus'],
+      packages=find_namespace_packages(exclude=['pade', 'tests', 'examples']),
       install_requires=[
           'pade'
       ],
