@@ -12,11 +12,6 @@ class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
     def __init__(self, agent):
         super().__init__(agent)
 
-        # Denote each open request. It is possible to have multiple
-        # sessions with a same party.
-        # The pair (conversation_id) represents a unique session.
-        self.open_sessions = {}
-
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
         The message was NOT yet filtered in terms of:
