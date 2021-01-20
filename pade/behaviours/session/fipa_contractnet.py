@@ -15,7 +15,6 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
         # Denote each open request. It is possible to have multiple
         # sessions with a same party.
         # The pair (conversation_id) represents a unique session.
-        self.open_sessions = {}
         self.session_params = {}
 
     def execute(self, message: ACLMessage):
@@ -60,25 +59,27 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
         except KeyError:
             return
 
+        params['receivers'][message.sender].add(message.performative)
+
         # First phase: CFP
         if params['cfp_phase']:
-            params['receivers'][message.sender].add(message.performative)
 
             if all(
-                params['receivers'][r] & {
+                receiver_msgs & {
                     ACLMessage.PROPOSE, ACLMessage.REFUSE}
-                for r in params['receivers']
+                for receiver_msgs in params['receivers'].values()
             ):
                 # End of CFP
                 self.end_cfp(session_id)
 
         # Second phase: Result
         else:
+
             if all(
-                params['receivers'][r] & {
+                receiver_msgs & {
                     ACLMessage.INFORM, ACLMessage.FAILURE}
-                for r in params['receivers']
-                if params['receivers'][r] & {ACLMessage.PROPOSE}
+                for receiver_msgs in params['receivers'].values()
+                if receiver_msgs & {ACLMessage.ACCEPT_PROPOSAL}
             ):
                 self.delete_session(session_id)
 
@@ -129,7 +130,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-        return self, message
+            return self, message
 
     def send_reject_proposal(self, message: ACLMessage):
 
@@ -147,7 +148,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-        return self, message
+            return self, message
 
     def register_session(self, message, generator) -> None:
 
@@ -179,7 +180,6 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
     def __init__(self, agent):
         super().__init__(agent)
         self.callback = None
-        self.open_sessions = {}
 
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
@@ -253,7 +253,7 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-        return self, message
+            return self, message
 
     def send_refuse(self, message: ACLMessage):
 
