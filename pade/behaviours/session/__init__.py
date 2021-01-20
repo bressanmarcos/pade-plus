@@ -16,10 +16,22 @@ class FipaSession():
         return synchronized
 
     @staticmethod
-    def run(generator) -> None:
+    def run(generator, continuation=False) -> None:
         """Register generator before sending message."""
-        protocol, message = next(generator)
-        protocol.register_session(message, generator)
+
+        try:
+            if continuation:
+                # Signal last protocol completion
+                protocol, message = generator.throw(FipaProtocolComplete)
+            else:
+                protocol, message = next(generator)
+
+            protocol.register_session(message, generator)
+
+        except TypeError:
+            pass
+        except (StopIteration, FipaProtocolComplete):
+            pass
 
 
 class GenericFipaProtocol(Behaviour):
@@ -50,14 +62,4 @@ class GenericFipaProtocol(Behaviour):
         except KeyError:
             pass
         else:
-            # Signal protocol completion if it's the last message
-            try:
-                next_ = generator.throw(FipaProtocolComplete)
-            except (StopIteration, FipaProtocolComplete):
-                pass
-            else:
-                try:
-                    protocol, message = next_
-                    protocol.register_session(message, generator)
-                except TypeError:
-                    pass
+            FipaSession.run(generator, continuation=True)
