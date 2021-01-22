@@ -68,7 +68,7 @@ def test_async_fipa_request(start_runtime):
                     except FipaProtocolComplete:
                         break
 
-                queue.put_nowait(True)
+                queue.put_nowait(None)
 
             async_request()
 
@@ -98,7 +98,11 @@ def test_async_fipa_request(start_runtime):
     receiver.ams = start_runtime
 
     with start_loop_test([sender, receiver]):
-        assert all(queue.get(timeout=30) for i in range(13))
+        while True:
+            expression = queue.get(timeout=30)
+            if expression == None:
+                break
+            assert expression
 
 
 
