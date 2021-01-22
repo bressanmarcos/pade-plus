@@ -70,18 +70,21 @@ class Manager(ImprovedAgent):
             # Accept message
             reply = best_proposal.create_reply()
             reply.set_content('Accepted!')
-            # It creates a session
 
-            try:
-                # Expects INFORM by default
-                inform = yield self.contract_net.send_accept_proposal(reply)
-                content = inform.content
-                display_message(
-                    self.aid.name,
-                    f'I received INFORM: {content} from {inform.sender.name}'
-                )
-            except FipaFailureHandler as h:
-                failure = h.message
+            while True:
+                try:
+                    # Expects INFORM by default
+                    inform = yield self.contract_net.send_accept_proposal(reply)
+                    content = inform.content
+                    display_message(
+                        self.aid.name,
+                        f'I received INFORM: {content} from {inform.sender.name}'
+                    )
+                except FipaFailureHandler as h:
+                    failure = h.message
+                except FipaProtocolComplete:
+                    print('END OF PROTOCOL')
+                    break
 
 
         async_cfp()
@@ -121,7 +124,7 @@ class Contractor(ImprovedAgent):
                 def job():
                     display_message(
                         self.aid.name,
-                        f"I'mma do my job"
+                        f"I'mma do my job (5 seconds)"
                     )
                     time.sleep(5)
                     return 10*int(reply.content)

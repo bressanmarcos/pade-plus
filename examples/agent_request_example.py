@@ -70,43 +70,41 @@ class Recipient(ImprovedAgent):
 
             return question
 
+        @FipaSession.session
         def do_long_job_callback(question):
+            
+            request_calc = ACLMessage()
+            request_calc.set_content(question)
+            request_calc.add_receiver(self.calculator_aid)
+            
+            while True:
+                try:
+                    response_calc = yield self.consult_behavior.send_request(request_calc)
+                    display_message(
+                        self.aid.name, 
+                        f'I received INFORM: {response_calc.content} from {response_calc.sender.name}'
+                    )
+                except FipaProtocolComplete:
+                    break
+            
+            def more_long_job():
+                # Massive calculations part II
+                display_message(self.aid.name, f'Doing second long job')
+                time.sleep(1.25)
 
-            @FipaSession.session
-            def async_request():
-                request_calc = ACLMessage()
-                request_calc.set_content(question)
-                request_calc.add_receiver(self.calculator_aid)
-                
-                while True:
-                    try:
-                        response_calc = yield self.consult_behavior.send_request(request_calc)
-                        display_message(
-                            self.aid.name, 
-                            f'I received INFORM: {response_calc.content} from {response_calc.sender.name}'
-                        )
-                    except FipaProtocolComplete:
-                        break
-                
-                def more_long_job():
-                    # Massive calculations part II
-                    display_message(self.aid.name, f'Doing second long job')
-                    time.sleep(1.25)
+                return response_calc.content
+            
+            def more_long_job_callback(result):
+                # There is still a reference to the incoming request
+                display_message(self.aid.name, f'Calling callback')
+                reply_inform = message.create_reply()
+                reply_inform.set_content(f'The result is: {result}')
+                self.inform_behavior.send_inform(reply_inform)
 
-                    return response_calc.content
-                
-                def more_long_job_callback(result):
-                    # There is still a reference to the incoming request
-                    display_message(self.aid.name, f'Calling callback')
-                    reply_inform = message.create_reply()
-                    reply_inform.set_content(f'The result is: {result}')
-                    self.inform_behavior.send_inform(reply_inform)
+                print('END OF PROTOCOL')
 
-                # Another blocking method in other thread, this time using callback
-                defer_to_thread(more_long_job, more_long_job_callback)
-
-            # Async method using reactor, must be called from reactor thread    
-            async_request()
+            # Another blocking method in other thread, this time using callback
+            defer_to_thread(more_long_job, more_long_job_callback)
 
         # Blocking method, must be called from another thread
         defer_to_thread(do_long_job, do_long_job_callback)
@@ -132,21 +130,20 @@ if __name__ == "__main__":
     agents = list()
 
     # Calculator agent
-    calculator_agent = Calculator(AID('calculator@localhost:55000'), debug=True)
+    calculator_agent = Calculator(AID('calculator@localhost:55000'))
     agents.append(calculator_agent)
 
     # Recipients
-    recipient_agent_1 = Recipient(AID("bravo@localhost:52000"), calculator_agent.aid, debug=True)
+    recipient_agent_1 = Recipient(AID("bravo@localhost:52000"), calculator_agent.aid)
     agents.append(recipient_agent_1)
 
-    recipient_agent_2 = Recipient(AID("charlie@localhost:50001"), calculator_agent.aid, debug=True)
+    recipient_agent_2 = Recipient(AID("charlie@localhost:50001"), calculator_agent.aid)
     agents.append(recipient_agent_2)
 
     # Sender
     sender_agent = Sender(
         AID("alfa@localhost:61000"), 
-        [recipient_agent_1.aid],
-        debug=True
+        [recipient_agent_1.aid, recipient_agent_2.aid]
     )
     agents.append(sender_agent)
 

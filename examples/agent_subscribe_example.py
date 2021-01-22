@@ -19,45 +19,41 @@ class Subscriber(ImprovedAgent):
                                                is_initiator=True)
         self.call_later(5.0, lambda: self.call_subscribe(publisher_aid))
 
+    @FipaSession.session
     def call_subscribe(self, publisher_aid):
+        # Message to send
+        message = ACLMessage()
+        message.set_content('Subscribe me, please!')
+        message.add_receiver(publisher_aid)
 
-        @FipaSession.session
-        def async_subscribe():
-            # Message to send
-            message = ACLMessage()
-            message.set_content('Subscribe me, please!')
-            message.add_receiver(publisher_aid)
-
-            while True:
-                try:
-                    # Expecting INFORM by default
-                    inform = yield self.subscribe.send_subscribe(message)
-                    display_message(
-                        self.aid.name,
-                        f'I received INFORM: {inform.content} from {inform.sender.name}'
-                    )
-                except FipaAgreeHandler as h:
-                    agree = h.message
-                    display_message(
-                        self.aid.name,
-                        f'I received AGREE: {agree.content} from {agree.sender.name}'
-                    )
-                except FipaRefuseHandler as h:
-                    refusal = h.message
-                    display_message(
-                        self.aid.name,
-                        f'I received REFUSE: {refusal.content} from {refusal.sender.name}'
-                    )
-                except FipaFailureHandler as h:
-                    failure = h.message
-                    display_message(
-                        self.aid.name,
-                        f'I received FAILURE: {failure.content} from {failure.sender.name}'
-                    )
-                except FipaProtocolComplete:
-                    break
-
-        async_subscribe()
+        while True:
+            try:
+                # Expecting INFORM by default
+                inform = yield self.subscribe.send_subscribe(message)
+                display_message(
+                    self.aid.name,
+                    f'I received INFORM: {inform.content} from {inform.sender.name}'
+                )
+            except FipaAgreeHandler as h:
+                agree = h.message
+                display_message(
+                    self.aid.name,
+                    f'I received AGREE: {agree.content} from {agree.sender.name}'
+                )
+            except FipaRefuseHandler as h:
+                refusal = h.message
+                display_message(
+                    self.aid.name,
+                    f'I received REFUSE: {refusal.content} from {refusal.sender.name}'
+                )
+            except FipaFailureHandler as h:
+                failure = h.message
+                display_message(
+                    self.aid.name,
+                    f'I received FAILURE: {failure.content} from {failure.sender.name}'
+                )
+            except FipaProtocolComplete:
+                break
 
 
 class Publisher(ImprovedAgent):
