@@ -4,13 +4,11 @@ from pade.acl.messages import ACLMessage
 from pade.core.agent import Agent
 
 from . import GenericFipaProtocol
+from . import AgentSession
 from .exceptions import *
 
 
 class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
-
-    def __init__(self, agent):
-        super().__init__(agent)
 
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
@@ -58,7 +56,7 @@ class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-            return self, message
+            return AgentSession(self, message)
 
     def register_session(self, message, generator) -> None:
         """Register generator to receive response."""
@@ -119,8 +117,6 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
             # Send message to subscriber
             self.agent.send(inform)
 
-        return self, message
-
     def send_failure(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
@@ -131,8 +127,6 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
-
     def send_agree(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
@@ -141,8 +135,6 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
-
     def send_refuse(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
@@ -150,8 +142,6 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
 
         # Send message to all receivers
         self.agent.send(message)
-
-        return self, message
 
 
 def FipaSubscribeProtocol(agent: Agent, is_initiator=True):

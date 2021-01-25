@@ -4,6 +4,7 @@ from pade.acl.messages import ACLMessage
 from pade.core.agent import Agent
 
 from . import GenericFipaProtocol
+from . import AgentSession
 from .exceptions import *
 
 
@@ -19,6 +20,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
 
     def execute(self, message: ACLMessage):
         """Called whenever the agent receives a message.
+        
         The message was NOT yet filtered in terms of:
         protocol, conversation_id or performative."""
         super().execute(message)
@@ -112,7 +114,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-            return self, message
+            return AgentSession(self, message)
 
     def send_accept_proposal(self, message: ACLMessage):
 
@@ -130,7 +132,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-            return self, message
+            return AgentSession(self, message)
 
     def send_reject_proposal(self, message: ACLMessage):
 
@@ -147,8 +149,6 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
 
             # Send message to all receivers
             self.agent.send(message)
-
-            return self, message
 
     def register_session(self, message, generator) -> None:
 
@@ -230,8 +230,6 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
-
     def send_failure(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
@@ -239,8 +237,6 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
 
         # Send message to all receivers
         self.agent.send(message)
-
-        return self, message
 
     def send_propose(self, message: ACLMessage):
 
@@ -253,7 +249,7 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-            return self, message
+            return AgentSession(self, message)
 
     def send_refuse(self, message: ACLMessage):
 
@@ -262,8 +258,6 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
 
         # Send message to all receivers
         self.agent.send(message)
-
-        return self, message
 
     def register_session(self, message, generator) -> None:
 

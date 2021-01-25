@@ -19,7 +19,7 @@ class Subscriber(ImprovedAgent):
                                                is_initiator=True)
         self.call_later(5.0, lambda: self.call_subscribe(publisher_aid))
 
-    @FipaSession.session
+    @AgentSession.session
     def call_subscribe(self, publisher_aid):
         # Message to send
         message = ACLMessage()

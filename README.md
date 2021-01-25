@@ -26,7 +26,7 @@ The instructions below are complementary to the official project, and detail spe
 - A session is identified by the message `correlation id`. It is created when an initiating send message is sent (`request`, `subscribe`, `cfp`) and deleted when the protocol is terminated (last message received, subscription cancelled, and so on). A session redirects received messages to its respective generator, resuming the calling process where it was paused / "yielded". The following code depicts the process to send a request:
 
 ```python
-from pade.behaviours.highlevel import FipaSession
+from pade.behaviours.highlevel import AgentSession
 from pade.behaviours.highlevel import FipaRequestProtocol
 from pade.behaviours.highlevel import FipaFailureHandler
 from pade.behaviours.highlevel import FipaProtocolComplete
@@ -36,30 +36,25 @@ from pade.plus.agent import ImprovedAgent
 class AnAgent(ImprovedAgent):
     def __init__(self):
         self.request = FipaRequestProtocol(self, is_initiator=True)
-        # `self.request` is also automatically added to `self.behaviours` to
-        # avoid verbosity
 
+    @AgentSession.session
     def make_request(receiver_aid):
 
-        @FipaSession.session
-        def async_request():
-            message = ACLMessage()
-            message.add_receiver(receiver_aid)
-            message.set_content('Hello')
+        message = ACLMessage()
+        message.add_receiver(receiver_aid)
+        message.set_content('Hello')
 
-            while True:
-                try:
-                    # Request message must be `yield'ed`
-                    response = yield self.request.send_request(message)
-                    # ... Treat `INFORM` type response
-                except FipaFailureHandler as e:
-                    response = e.message
-                    # ... Treat `FAILURE` type response
-                # ... other excepts ...
-                except FipaProtocolComplete:
-                    # End of protocol, break loop
-                    break
-            # Code after protocol end
-        # Launch async request
-        async_request()
+        while True:
+            try:
+                # Request message must be `yield'ed`
+                response = yield self.request.send_request(message)
+                # ... Treat `INFORM` type response
+            except FipaFailureHandler as e:
+                response = e.message
+                # ... Treat `FAILURE` type response
+            # ... other excepts ...
+            except FipaProtocolComplete:
+                # End of protocol, break loop
+                break
+        # Code after protocol end
 ```

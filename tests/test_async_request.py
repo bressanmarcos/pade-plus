@@ -23,7 +23,7 @@ def test_async_fipa_request(start_runtime):
         def make_request(self):
             print('making request')
 
-            @FipaSession.session
+            @AgentSession.session
             def async_request():
                 message = ACLMessage()
                 message.set_content('request')

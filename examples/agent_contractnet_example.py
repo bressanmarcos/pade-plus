@@ -21,7 +21,7 @@ class Manager(ImprovedAgent):
 
     def call_proposals(self, recipients_aid):
 
-        @FipaSession.session
+        @AgentSession.session
         def async_cfp():
             # Message to send
             message = ACLMessage()
@@ -96,6 +96,7 @@ class Contractor(ImprovedAgent):
                                                     is_initiator=False)
         self.contract_net.set_cfp_handler(self.on_cfp)
 
+    @AgentSession.session
     def on_cfp(self, message):
         display_message(
             self.aid.name,
@@ -111,40 +112,35 @@ class Contractor(ImprovedAgent):
         # Propose
         reply.set_content(str(randint(0, 1000)))
 
-        @FipaSession.session
-        def async_propose():
-
-            try:
-                accept_proposal = yield self.contract_net.send_propose(reply)
+        try:
+            accept_proposal = yield self.contract_net.send_propose(reply)
+            display_message(
+                self.aid.name,
+                f'I received ACCEPT-PROPOSAL: {accept_proposal.content} from {accept_proposal.sender.name}'
+            )
+            # I'mma do some job in another thread
+            def job():
                 display_message(
                     self.aid.name,
-                    f'I received ACCEPT-PROPOSAL: {accept_proposal.content} from {accept_proposal.sender.name}'
+                    f"I'mma do my job (5 seconds)"
                 )
-                # I'mma do some job in another thread
-                def job():
-                    display_message(
-                        self.aid.name,
-                        f"I'mma do my job (5 seconds)"
-                    )
-                    time.sleep(5)
-                    return 10*int(reply.content)
+                time.sleep(5)
+                return 10*int(reply.content)
 
-                def job_callback(value):
-                    inform_message = accept_proposal.create_reply()
-                    inform_message.set_content(value)
-                    # Use reactor thread to send final results
-                    self.contract_net.send_inform(inform_message)
+            def job_callback(value):
+                inform_message = accept_proposal.create_reply()
+                inform_message.set_content(value)
+                # Use reactor thread to send final results
+                self.contract_net.send_inform(inform_message)
 
-                defer_to_thread(job, job_callback)
+            defer_to_thread(job, job_callback)
 
-            except FipaRejectProposalHandler as h:
-                reject_proposal = h.message
-                display_message(
-                    self.aid.name,
-                    f'I received REJECT-PROPOSAL: {reject_proposal.content} from {reject_proposal.sender.name}'
-                )
-        
-        async_propose()
+        except FipaRejectProposalHandler as h:
+            reject_proposal = h.message
+            display_message(
+                self.aid.name,
+                f'I received REJECT-PROPOSAL: {reject_proposal.content} from {reject_proposal.sender.name}'
+            )
 
 if __name__ == "__main__":
     agents = list()

@@ -4,6 +4,7 @@ from pade.acl.messages import ACLMessage
 from pade.core.agent import Agent
 
 from . import GenericFipaProtocol
+from . import AgentSession
 from .exceptions import *
 
 
@@ -66,7 +67,7 @@ class FipaRequestProtocolInitiator(GenericFipaProtocol):
             # Send message to all receivers
             self.agent.send(message)
 
-            return self, message
+            return AgentSession(self, message)
 
     def register_session(self, message, generator) -> None:
         # Register generator in session
@@ -87,7 +88,7 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         """Called whenever the agent receives a message.
         The message was NOT yet filtered in terms of:
         protocol, conversation_id or performative."""
-        super(FipaRequestProtocolParticipant, self).execute(message)
+        super().execute(message)
 
         # Filter for protocol
         if not message.protocol == ACLMessage.FIPA_REQUEST_PROTOCOL:
@@ -111,8 +112,6 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
-
     def send_failure(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
@@ -120,8 +119,6 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
 
         # Send message to all receivers
         self.agent.send(message)
-
-        return self, message
 
     def send_agree(self, message: ACLMessage):
 
@@ -131,8 +128,6 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
-
     def send_refuse(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
@@ -140,8 +135,6 @@ class FipaRequestProtocolParticipant(GenericFipaProtocol):
 
         # Send message to all receivers
         self.agent.send(message)
-
-        return self, message
 
 
 def FipaRequestProtocol(agent: Agent, is_initiator=True):

@@ -1,37 +1,10 @@
 from functools import wraps
+from collections.abc import Generator
 
 from pade.behaviours.protocols import Behaviour
 from pade.acl.messages import ACLMessage
 
 from .exceptions import *
-
-
-class FipaSession():
-    @staticmethod
-    def session(async_f):
-        """Converts generator function into a callable function"""
-        @wraps(async_f)
-        def synchronized(*args, **kwargs):
-            return FipaSession.run(async_f(*args, **kwargs))
-        return synchronized
-
-    @staticmethod
-    def run(generator, continuation=False) -> None:
-        """Register generator before sending message."""
-
-        try:
-            if continuation:
-                # Signal last protocol completion
-                protocol, message = generator.throw(FipaProtocolComplete)
-            else:
-                protocol, message = next(generator)
-
-            protocol.register_session(message, generator)
-
-        except TypeError:
-            pass
-        except (StopIteration, FipaProtocolComplete):
-            pass
 
 
 class GenericFipaProtocol(Behaviour):
@@ -48,7 +21,7 @@ class GenericFipaProtocol(Behaviour):
         # Send message to all receivers
         self.agent.send(message)
 
-        return self, message
+        return AgentSession(self, message)
 
     def register_session(self, message, generator) -> None:
         """Register generator to receive response."""
@@ -62,4 +35,42 @@ class GenericFipaProtocol(Behaviour):
         except KeyError:
             pass
         else:
-            FipaSession.run(generator, continuation=True)
+            AgentSession.run(generator, continuation=True)
+
+
+class AgentSession():
+
+    def __init__(self, protocol: GenericFipaProtocol, message: ACLMessage):
+        self.protocol = protocol
+        self.message = message
+
+    def register(self, generator: Generator):
+        """Register session in the interaction protocol"""
+        return self.protocol.register_session(self.message, generator)
+
+    @staticmethod
+    def session(async_f):
+        """Converts a generator function into a callable function
+        that will resume the generator when a message is received."""
+        @wraps(async_f)
+        def synchronized(*args, **kwargs):
+            return AgentSession.run(async_f(*args, **kwargs))
+        return synchronized
+
+    @staticmethod
+    def run(generator: Generator, continuation=False) -> None:
+        """Register generator before sending message."""
+
+        try:
+            if continuation:
+                # Signal last protocol completion
+                session = generator.throw(FipaProtocolComplete)
+            else:
+                session = next(generator)
+
+            session.register(generator)
+
+        except TypeError:
+            pass
+        except (StopIteration, FipaProtocolComplete):
+            pass

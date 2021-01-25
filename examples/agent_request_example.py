@@ -19,7 +19,7 @@ class Sender(ImprovedAgent):
 
     def on_time(self, recipients_aid):
 
-        @FipaSession.session
+        @AgentSession.session
         def async_request(receiver):
             # Message to send
             message = ACLMessage()
@@ -70,7 +70,7 @@ class Recipient(ImprovedAgent):
 
             return question
 
-        @FipaSession.session
+        @AgentSession.session
         def do_long_job_callback(question):
             
             request_calc = ACLMessage()
