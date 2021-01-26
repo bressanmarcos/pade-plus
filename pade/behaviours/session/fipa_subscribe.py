@@ -119,13 +119,17 @@ class FipaSubscribeProtocolParticipant(GenericFipaProtocol):
 
     def send_failure(self, message: ACLMessage):
 
-        message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
-        message.set_performative(ACLMessage.FAILURE)
-        for subscriber in self._subscribers:
-            message.add_receiver(subscriber)
+        for subscribe_message in self._subscribers:
+            inform = subscribe_message.create_reply()
+            inform.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
+            inform.set_performative(ACLMessage.FAILURE)
+            inform.set_content(message.content)
+            inform.set_language(message.language)
+            inform.set_ontology(message.ontology)
+            inform.set_encoding(message.encoding)
 
-        # Send message to all receivers
-        self.agent.send(message)
+            # Send message to subscriber
+            self.agent.send(inform)
 
     def send_agree(self, message: ACLMessage):
 
