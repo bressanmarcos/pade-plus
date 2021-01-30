@@ -1,4 +1,5 @@
 from functools import wraps
+from typing import Iterable
 from collections.abc import Generator
 
 from pade.behaviours.protocols import Behaviour
@@ -59,7 +60,8 @@ class AgentSession():
 
     @staticmethod
     def run(generator: Generator, continuation=False) -> None:
-        """Register generator before sending message."""
+        """Start or Resume a generator, saving the returned session
+        into the referred protocol."""
 
         try:
             if continuation:
@@ -74,3 +76,52 @@ class AgentSession():
             pass
         except (StopIteration, FipaProtocolComplete):
             pass
+
+    @staticmethod
+    def gather(*generators):
+        return MultiSession(generators)
+
+
+class MultiSession():
+
+    @staticmethod
+    def generate_queue(dest_generator, size):
+        # Gather responses into a list
+        results_list = []
+        for _ in range(size):
+            result = yield
+            results_list.append(result)
+        try:
+            # Send responses back to caller
+            dest_generator.send(results_list)
+        except StopIteration:
+            pass
+
+    @staticmethod
+    def generate_send_to_queue(generator, queue):
+        # Modify generator to send result to queue
+        result = yield from generator
+        try:
+            queue.send(result)
+        except StopIteration:
+            pass
+
+    def __init__(self, generators: Iterable[Generator]):
+        # dict AgentSession -> generator
+        self.generators = list(generators)
+
+    def register(self, outside_generator: Generator):
+        """Register session in the interaction protocol"""
+
+        response_queue = MultiSession.generate_queue(
+            outside_generator, size=len(self.generators)
+        )
+        next(response_queue)
+
+        for generator in self.generators:
+            # Save modified generators into their respective Protocols
+            modified = MultiSession.generate_send_to_queue(
+                generator, queue=response_queue
+            )
+            session = next(modified)
+            session.register(modified)
