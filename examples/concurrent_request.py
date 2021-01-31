@@ -1,5 +1,5 @@
 import time
-from random import randint
+from random import randint, random
 
 from pade.acl.aid import AID
 from pade.acl.messages import ACLMessage
@@ -24,7 +24,7 @@ class Client(ImprovedAgent):
         message.add_receiver(receiver)
         while True:
             try:
-                response = yield self.req.send_request(message)
+                response = yield from self.req.send_request(message)
             except FipaMessageHandler as h:
                 response = h.message
             except FipaProtocolComplete:
@@ -36,8 +36,10 @@ class Client(ImprovedAgent):
         r1, r2 = yield from AgentSession.gather(
             *(self.one_request(s) for s in self.servers)
         )
-        display_message(self.aid.name, "Final response 1: " + r1.content)
-        display_message(self.aid.name, "Final response 2: " + r2.content)
+        display_message(self.aid.name,
+                        f"Final response 1: [{r1.performative}] {r1.content}")
+        display_message(self.aid.name,
+                        f"Final response 2: [{r2.performative}] {r2.content}")
 
 
 class Server(ImprovedAgent):
@@ -48,12 +50,18 @@ class Server(ImprovedAgent):
 
     def on_request(self, message: ACLMessage):
         display_message(self.aid.name, "Received a message")
+
         reply = message.create_reply()
-        reply.set_content(f'Take this! {randint(0, 100)}')
-        delay = randint(0, 10)
+        reply.set_content(f'Take this! {random()}')
+
+        delay = 10 * random()
         display_message(self.aid.name, "Starting job")
         print('Job delay:', delay)
-        call_later(delay, self.req.send_inform, reply)
+
+        if random() < 0.5:
+            call_later(delay, self.req.send_inform, reply)
+        else:
+            call_later(delay, self.req.send_failure, reply)
 
 if __name__ == "__main__":
     agents = list()

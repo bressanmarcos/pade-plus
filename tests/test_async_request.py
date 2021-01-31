@@ -30,7 +30,7 @@ def test_async_fipa_request(start_runtime):
                 message.add_receiver(self.receiver)
                 while True:
                     try:
-                        response = yield self.request.send_request(message)
+                        response = yield from self.request.send_request(message)
                         print('informed')
 
                         queue.put_nowait(response.performative == ACLMessage.INFORM)
@@ -52,7 +52,7 @@ def test_async_fipa_request(start_runtime):
                 message.add_receiver(self.receiver)
                 while True:
                     try:
-                        response = yield self.request.send_request(message)
+                        response = yield from self.request.send_request(message)
                         print('informed2')
 
                         queue.put_nowait(response.performative == ACLMessage.INFORM)

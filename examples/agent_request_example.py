@@ -29,7 +29,7 @@ class Sender(ImprovedAgent):
             while True:
 
                 try:
-                    response_message = yield self.request_behavior.send_request(message)
+                    response_message = yield from self.request_behavior.send_request(message)
                     content = response_message.content
                     display_message(self.aid.name, f'I received INFORM: {content} from {response_message.sender.name}')
                 
@@ -79,7 +79,7 @@ class Recipient(ImprovedAgent):
             
             while True:
                 try:
-                    response_calc = yield self.consult_behavior.send_request(request_calc)
+                    response_calc = yield from self.consult_behavior.send_request(request_calc)
                     display_message(
                         self.aid.name, 
                         f'I received INFORM: {response_calc.content} from {response_calc.sender.name}'
@@ -116,7 +116,6 @@ class Calculator(ImprovedAgent):
         super(Calculator, self).__init__(aid, debug)
         self.calculator_behaviour = FipaRequestProtocol(self, is_initiator=False)
         self.calculator_behaviour.set_request_handler(self.on_request)
-        self.behaviours.append(self.calculator_behaviour)
 
     def on_request(self, message: ACLMessage):
         content = message.content

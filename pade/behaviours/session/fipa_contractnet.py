@@ -105,13 +105,11 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
 
     def send_cfp(self, message: ACLMessage):
 
-        if message.conversation_id not in self.open_sessions:
-            """Ensures that a message is only sent when there is no open
-            session for it"""
-            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-            message.set_performative(ACLMessage.CFP)
+        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+        message.set_performative(ACLMessage.CFP)
 
-            return AgentSession(self, message)
+        response = yield AgentSession(self, message)
+        return response
 
     def send_accept_proposal(self, message: ACLMessage):
 
@@ -128,6 +126,9 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
 
             # Send message to all receivers
             self.agent.send(message)
+
+        response = yield
+        return response
 
     def send_reject_proposal(self, message: ACLMessage):
 
@@ -156,7 +157,7 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             'receivers': {r: set() for r in receivers}
         }
 
-        # Send subscribe message now
+        # Send cfp message now
         self.agent.send(message)
 
         # Set timeout to CFP
@@ -223,13 +224,11 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
 
     def send_propose(self, message: ACLMessage):
 
-        if message.conversation_id not in self.open_sessions:
-            """Ensures that a message is only sent when there is no open
-            session for it"""
-            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-            message.set_performative(ACLMessage.PROPOSE)
+        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+        message.set_performative(ACLMessage.PROPOSE)
 
-            return AgentSession(self, message)
+        response = yield AgentSession(self, message)
+        return response
 
     def send_refuse(self, message: ACLMessage):
 

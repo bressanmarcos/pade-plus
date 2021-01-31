@@ -47,19 +47,17 @@ class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
 
     def send_subscribe(self, message: ACLMessage):
 
-        if message.conversation_id not in self.open_sessions:
-            """Ensures that a message is only sent when there is no open
-            session for it"""
-            message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
-            message.set_performative(ACLMessage.SUBSCRIBE)
+        message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
+        message.set_performative(ACLMessage.SUBSCRIBE)
 
-            return AgentSession(self, message)
+        response = yield AgentSession(self, message)
+        return response
 
     def register_session(self, message, generator) -> None:
         """Register generator to receive response."""
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
-        
+
         # Send message now
         self.agent.send(message)
 

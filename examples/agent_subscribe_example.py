@@ -29,7 +29,7 @@ class Subscriber(ImprovedAgent):
         while True:
             try:
                 # Expecting INFORM by default
-                inform = yield self.subscribe.send_subscribe(message)
+                inform = yield from self.subscribe.send_subscribe(message)
                 display_message(
                     self.aid.name,
                     f'I received INFORM: {inform.content} from {inform.sender.name}'

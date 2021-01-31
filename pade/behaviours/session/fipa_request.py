@@ -57,13 +57,11 @@ class FipaRequestProtocolInitiator(GenericFipaProtocol):
         # Only individual messages
         assert len(message.receivers) == 1
 
-        if message.conversation_id not in self.open_sessions:
-            """Ensures that a message is only sent when there is no open
-            session for it"""
-            message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
-            message.set_performative(ACLMessage.REQUEST)
+        message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
+        message.set_performative(ACLMessage.REQUEST)
 
-            return AgentSession(self, message)
+        response = yield AgentSession(self, message)
+        return response
 
     def register_session(self, message, generator) -> None:
         # Register generator in session

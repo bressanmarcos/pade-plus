@@ -34,7 +34,7 @@ class Manager(ImprovedAgent):
             while True:
                 try:
                     # Expecting PROPOSAL by default
-                    proposal = yield self.contract_net.send_cfp(message)
+                    proposal = yield from self.contract_net.send_cfp(message)
                     display_message(
                         self.aid.name,
                         f'I received PROPOSE: {proposal.content} from {proposal.sender.name}'
@@ -74,7 +74,7 @@ class Manager(ImprovedAgent):
             while True:
                 try:
                     # Expects INFORM by default
-                    inform = yield self.contract_net.send_accept_proposal(reply)
+                    inform = yield from self.contract_net.send_accept_proposal(reply)
                     content = inform.content
                     display_message(
                         self.aid.name,
@@ -113,7 +113,7 @@ class Contractor(ImprovedAgent):
         reply.set_content(str(randint(0, 1000)))
 
         try:
-            accept_proposal = yield self.contract_net.send_propose(reply)
+            accept_proposal = yield from self.contract_net.send_propose(reply)
             display_message(
                 self.aid.name,
                 f'I received ACCEPT-PROPOSAL: {accept_proposal.content} from {accept_proposal.sender.name}'
