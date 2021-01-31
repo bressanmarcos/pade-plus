@@ -88,10 +88,10 @@ class MultiSession():
     @staticmethod
     def generate_queue(dest_generator, size):
         # Gather responses into a list
-        results_list = []
+        results_list = [None] * size
         for _ in range(size):
-            result = yield
-            results_list.append(result)
+            position, result = yield
+            results_list[position] = result
         try:
             # Send responses back to caller
             dest_generator.send(results_list)
@@ -99,11 +99,11 @@ class MultiSession():
             pass
 
     @staticmethod
-    def generate_send_to_queue(generator, queue):
+    def generate_send_to_queue(generator, queue, position):
         # Modify generator to send result to queue
         result = yield from generator
         try:
-            queue.send(result)
+            queue.send((position, result))
         except StopIteration:
             pass
 
@@ -119,10 +119,10 @@ class MultiSession():
         )
         next(response_queue)
 
-        for generator in self.generators:
+        for index, generator in enumerate(self.generators):
             # Save modified generators into their respective Protocols
             modified = MultiSession.generate_send_to_queue(
-                generator, queue=response_queue
+                generator, queue=response_queue, position=index
             )
             session = next(modified)
             session.register(modified)
