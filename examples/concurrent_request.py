@@ -33,7 +33,7 @@ class Client(ImprovedAgent):
 
     @AgentSession.session
     def make_request(self):
-        r1, r2 = yield AgentSession.gather(
+        r1, r2 = yield from AgentSession.gather(
             *(self.one_request(s) for s in self.servers)
         )
         display_message(self.aid.name, "Final response 1: " + r1.content)

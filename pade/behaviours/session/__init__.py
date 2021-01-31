@@ -79,7 +79,8 @@ class AgentSession():
 
     @staticmethod
     def gather(*generators):
-        return MultiSession(generators)
+        results = yield MultiSession(generators)
+        return results
 
 
 class MultiSession():
