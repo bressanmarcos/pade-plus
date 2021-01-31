@@ -53,16 +53,15 @@ class FipaSubscribeProtocolInitiator(GenericFipaProtocol):
             message.set_protocol(ACLMessage.FIPA_SUBSCRIBE_PROTOCOL)
             message.set_performative(ACLMessage.SUBSCRIBE)
 
-            # Send message to all receivers
-            self.agent.send(message)
-
             return AgentSession(self, message)
 
     def register_session(self, message, generator) -> None:
         """Register generator to receive response."""
-
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
+        
+        # Send message now
+        self.agent.send(message)
 
 
 class FipaSubscribeProtocolParticipant(GenericFipaProtocol):

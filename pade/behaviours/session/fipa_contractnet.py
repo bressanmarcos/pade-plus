@@ -111,9 +111,6 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
             message.set_performative(ACLMessage.CFP)
 
-            # Send message to all receivers
-            self.agent.send(message)
-
             return AgentSession(self, message)
 
     def send_accept_proposal(self, message: ACLMessage):
@@ -131,8 +128,6 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
 
             # Send message to all receivers
             self.agent.send(message)
-
-            return AgentSession(self, message)
 
     def send_reject_proposal(self, message: ACLMessage):
 
@@ -160,6 +155,10 @@ class FipaContractNetProtocolInitiator(GenericFipaProtocol):
             'cfp_phase': True,
             'receivers': {r: set() for r in receivers}
         }
+
+        # Send subscribe message now
+        self.agent.send(message)
+
         # Set timeout to CFP
         self.agent.call_later(30, self.end_cfp, session_id)
         # The session expires in 1 minute by default
@@ -222,6 +221,24 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
 
         self.callback = callback
 
+    def send_propose(self, message: ACLMessage):
+
+        if message.conversation_id not in self.open_sessions:
+            """Ensures that a message is only sent when there is no open
+            session for it"""
+            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+            message.set_performative(ACLMessage.PROPOSE)
+
+            return AgentSession(self, message)
+
+    def send_refuse(self, message: ACLMessage):
+
+        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
+        message.set_performative(ACLMessage.REFUSE)
+
+        # Send message to all receivers
+        self.agent.send(message)
+
     def send_inform(self, message: ACLMessage):
 
         message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
@@ -238,32 +255,15 @@ class FipaContractNetProtocolParticipant(GenericFipaProtocol):
         # Send message to all receivers
         self.agent.send(message)
 
-    def send_propose(self, message: ACLMessage):
-
-        if message.conversation_id not in self.open_sessions:
-            """Ensures that a message is only sent when there is no open
-            session for it"""
-            message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-            message.set_performative(ACLMessage.PROPOSE)
-
-            # Send message to all receivers
-            self.agent.send(message)
-
-            return AgentSession(self, message)
-
-    def send_refuse(self, message: ACLMessage):
-
-        message.set_protocol(ACLMessage.FIPA_CONTRACT_NET_PROTOCOL)
-        message.set_performative(ACLMessage.REFUSE)
-
-        # Send message to all receivers
-        self.agent.send(message)
-
     def register_session(self, message, generator) -> None:
 
         # Register generator in session
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
+
+        # Send propose message now
+        self.agent.send(message)
+
         # The session expires in 1 minute by default
         self.agent.call_later(60, self.delete_session, session_id)
 

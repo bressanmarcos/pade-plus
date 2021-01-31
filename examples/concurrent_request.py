@@ -25,15 +25,16 @@ class Client(ImprovedAgent):
         while True:
             try:
                 response = yield self.req.send_request(message)
+            except FipaMessageHandler as h:
+                response = h.message
             except FipaProtocolComplete:
-                break 
+                break
         return response
 
     @AgentSession.session
     def make_request(self):
         r1, r2 = yield AgentSession.gather(
-                self.one_request(self.servers[0]), 
-                self.one_request(self.servers[1])
+            *(self.one_request(s) for s in self.servers)
         )
         display_message(self.aid.name, "Final response 1: " + r1.content)
         display_message(self.aid.name, "Final response 2: " + r2.content)
@@ -48,8 +49,8 @@ class Server(ImprovedAgent):
     def on_request(self, message: ACLMessage):
         display_message(self.aid.name, "Received a message")
         reply = message.create_reply()
-        reply.set_content('Take this!')
-        delay = randint(2, 5)
+        reply.set_content(f'Take this! {randint(0, 100)}')
+        delay = randint(0, 10)
         display_message(self.aid.name, "Starting job")
         print('Job delay:', delay)
         call_later(delay, self.req.send_inform, reply)

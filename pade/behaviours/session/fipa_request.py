@@ -54,6 +54,8 @@ class FipaRequestProtocolInitiator(GenericFipaProtocol):
             self.delete_session(session_id)
 
     def send_request(self, message: ACLMessage):
+        # Only individual messages
+        assert len(message.receivers) == 1
 
         if message.conversation_id not in self.open_sessions:
             """Ensures that a message is only sent when there is no open
@@ -61,18 +63,15 @@ class FipaRequestProtocolInitiator(GenericFipaProtocol):
             message.set_protocol(ACLMessage.FIPA_REQUEST_PROTOCOL)
             message.set_performative(ACLMessage.REQUEST)
 
-            # Only individual messages
-            assert len(message.receivers) == 1
-
-            # Send message to all receivers
-            self.agent.send(message)
-
             return AgentSession(self, message)
 
     def register_session(self, message, generator) -> None:
         # Register generator in session
         session_id = message.conversation_id
         self.open_sessions[session_id] = generator
+
+        # Send request message now
+        self.agent.send(message)
 
         # The session expires in 1 minute by default
         self.agent.call_later(60, self.delete_session, session_id)
