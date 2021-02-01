@@ -59,22 +59,29 @@ class AgentSession():
         return synchronized
 
     @staticmethod
-    def run(generator: Generator, continuation=False) -> None:
+    def run(generator: Generator, continuation=False, data=None) -> None:
         """Start or Resume a generator, saving the returned session
         into the referred protocol."""
 
         try:
             if continuation:
-                # Signal last protocol completion
-                session = generator.throw(FipaProtocolComplete)
+                if data:
+                    # End of a special method
+                    session = generator.send(data)
+                else:
+                    # Signal last protocol completion
+                    session = generator.throw(FipaProtocolComplete)
             else:
+                # Start generator
                 session = next(generator)
 
             session.register(generator)
 
         except TypeError:
             pass
-        except (StopIteration, FipaProtocolComplete):
+        except StopIteration:
+            pass
+        except FipaProtocolComplete:
             pass
 
     @staticmethod
@@ -92,11 +99,8 @@ class MultiSession():
         for _ in range(size):
             position, result = yield
             results_list[position] = result
-        try:
-            # Send responses back to caller
-            dest_generator.send(results_list)
-        except StopIteration:
-            pass
+
+        AgentSession.run(dest_generator, continuation=True, data=results_list)
 
     @staticmethod
     def generate_send_to_queue(generator, queue, position):
